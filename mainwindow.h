@@ -101,8 +101,10 @@ private slots:
     void about();
     void aboutQt();
     void outOptSelectFolder();
+    void outOptSelectTemplateFolder();
     void replyFinished(QNetworkReply*);
     void run();
+    bool validate();
 
 private:
     void createActions();
@@ -143,8 +145,15 @@ private:
     int m_run_wait_count;
     QLineEdit *m_input_product_name_le;
     QLineEdit *m_input_jancode_le;
+    QLineEdit *m_input_search_word_le;
+    QLineEdit *m_input_product_code_le;
     QLineEdit *m_output_folder_le;
+    QLineEdit *m_output_template_folder_le;
+    QLineEdit *m_output_remarks_1_le;
+    QLineEdit *m_output_remarks_2_le;
+    QLineEdit *m_output_remarks_3_le;
     QPushButton *outOptSelectFolderSubmit;
+    QPushButton *outOptSelectWllTemplateFolderSubmit;
 };
 
 #endif

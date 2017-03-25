@@ -53,6 +53,7 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include <QMessageBox>
 #include <QFile>
+#include <QVector>
 #include "searchentry.h"
 
 MainWindow::MainWindow()
@@ -79,8 +80,8 @@ MainWindow::MainWindow()
     // - セット
     widget->setLayout(layout);
     setWindowTitle(tr("リンク作成ツール"));
-    setMinimumSize(480, 320);
-    resize(480, 346);
+    setMinimumSize(520, 540);
+    resize(520, 540);
 }
 
 bool MainWindow::loadIni(const QString& inifile_path) {
@@ -114,6 +115,8 @@ bool MainWindow::loadIni(const QString& inifile_path) {
             inibody += QString::fromUtf8("[global]\n");
             inibody += QString::fromUtf8("output_folder=\n");
             inibody += QString::fromUtf8("search_entry_list=\"rakuten_books,seven_net,amiami_rakuten,bigcamera,furu1_online,tower_record,tsutaya,nojima_online,hapinet_online,toizarasu\"\n");
+            inibody += QString::fromUtf8("force_output=true\n");
+            inibody += QString::fromUtf8("max_template_num=2\n");
             inibody += QString::fromUtf8("\n");
             inibody += QString::fromUtf8("[_search_entry_rakuten_books]\n");
             inibody += QString::fromUtf8("name=楽天ブックス\n");
@@ -123,6 +126,7 @@ bool MainWindow::loadIni(const QString& inifile_path) {
             inibody += QString::fromUtf8("regex_product_price=\"<span class=\\\"rbcomp__line-through\\\">([0-9,]*)\"\n");
             inibody += QString::fromUtf8("regex_product_date=\"<p class=\\\"rbcomp__item-list__item__subtext\\\">[\\\\r\\\\n\\\\s]*([0-9]+年[0-9]+月[0-9]+日)\"\n");
             inibody += QString::fromUtf8("link_template=\"<a href=\\\"http://hb.afl.rakuten.co.jp/hgc/129cd0f9.bb4a99f6.129cd0fa.b7e93432/?pc=:product_eurl&scid=af_item_txt&link_type=text&ut=eyJwYWdlIjoiaXRlbSIsInR5cGUiOiJ0ZXh0Iiwic2l6ZSI6IjQwMHg0MDAiLCJuYW0iOjEsIm5hbXAiOiJkb3duIiwiY29tIjoxLCJjb21wIjoibGVmdCIsInByaWNlIjoxLCJib3IiOjEsImNvbCI6MH0%3D\\\" target=\\\"_blank\\\" style=\\\"word-wrap:break-word;\\\" >:product_name</a>\"\n");
+            inibody += QString::fromUtf8("link_template2=\"<a href=\\\"http://hb.afl.rakuten.co.jp/hgc/129cd0f9.bb4a99f6.129cd0fa.b7e93432/?pc=:product_eurl&scid=af_item_txt&link_type=text&ut=eyJwYWdlIjoiaXRlbSIsInR5cGUiOiJ0ZXh0Iiwic2l6ZSI6IjQwMHg0MDAiLCJuYW0iOjEsIm5hbXAiOiJkb3duIiwiY29tIjoxLCJjb21wIjoibGVmdCIsInByaWNlIjoxLCJib3IiOjEsImNvbCI6MH0%3D\\\" target=\\\"_blank\\\" style=\\\"word-wrap:break-word;\\\" >:product_name</a>\"\n");
             inibody += QString::fromUtf8("enable=true\n");
             inibody += QString::fromUtf8("\n");
             inibody += QString::fromUtf8("[_search_entry_seven_net]\n");
@@ -303,9 +307,34 @@ void MainWindow::addSearchInputWidget(QVBoxLayout* p) {
 
     // JANコード
     m_input_jancode_le = new QLineEdit();
-
     scLayout->addWidget(new QLabel(tr("JANコード")));
     scLayout->addWidget(m_input_jancode_le);
+
+    // 検索ワード
+    m_input_search_word_le = new QLineEdit();
+    scLayout->addWidget(new QLabel(tr("検索ワード")));
+    scLayout->addWidget(m_input_search_word_le);
+
+    // 品番コード
+    m_input_product_code_le = new QLineEdit();
+    scLayout->addWidget(new QLabel(tr("品番コード")));
+    scLayout->addWidget(m_input_product_code_le);
+
+    // 備考1
+    m_output_remarks_1_le = new QLineEdit();
+    scLayout->addWidget(new QLabel(tr("備考1")));
+    scLayout->addWidget(m_output_remarks_1_le);
+
+    // 備考2
+    m_output_remarks_2_le = new QLineEdit();
+    scLayout->addWidget(new QLabel(tr("備考2")));
+    scLayout->addWidget(m_output_remarks_2_le);
+
+    // 備考3
+    m_output_remarks_3_le = new QLineEdit();
+    scLayout->addWidget(new QLabel(tr("備考3")));
+    scLayout->addWidget(m_output_remarks_3_le);
+
     searchConditionGB->setLayout(scLayout);
     p->addWidget(searchConditionGB);
 }
@@ -332,10 +361,32 @@ void MainWindow::addOutputOptionWidget(QVBoxLayout* p) {
     QHBoxLayout *outOptSelectFolderLayout = new QHBoxLayout();
     outOptSelectFolderLayout->addWidget(m_output_folder_le);
     outOptSelectFolderLayout->addWidget(outOptSelectFolderSubmit);
+    outOptLayout->addWidget(new QLabel(tr("出力先フォルダ")));
     outOptLayout->addLayout(outOptSelectFolderLayout);
-    outOptGB->setLayout(outOptLayout);
+
+    // テンプレートフォルダテキストボックス
+    m_output_template_folder_le = new QLineEdit();
+    m_settings->beginGroup("global");
+    if (m_settings->value("output_template_file").toString().isEmpty()) {
+        m_output_template_folder_le->insert(m_here + "\\conf\\wwl");
+    } else {
+        m_output_template_folder_le->insert(m_settings->value("output_template_file").toString());
+    }
+    m_settings->endGroup();
+
+    // フォルダ選択ボタン
+    outOptSelectWllTemplateFolderSubmit = new QPushButton(tr("フォルダ選択"));
+    outOptSelectWllTemplateFolderSubmit->resize(30, 30);
+    outOptSelectWllTemplateFolderSubmit->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QObject::connect(outOptSelectWllTemplateFolderSubmit, SIGNAL(clicked(bool)), this, SLOT(outOptSelectTemplateFolder()));
+    QHBoxLayout *outOptSelectWllTemplateFolderLayout = new QHBoxLayout();
+    outOptSelectWllTemplateFolderLayout->addWidget(m_output_template_folder_le);
+    outOptSelectWllTemplateFolderLayout->addWidget(outOptSelectWllTemplateFolderSubmit);
+    outOptLayout->addWidget(new QLabel(tr("wwlテンプレートフォルダ")));
+    outOptLayout->addLayout(outOptSelectWllTemplateFolderLayout);
 
     p->addWidget(outOptGB);
+    outOptGB->setLayout(outOptLayout);
 }
 
 void MainWindow::addSubmitLayout(QVBoxLayout* p) {
@@ -364,17 +415,37 @@ void MainWindow::outOptSelectFolder()
     }
 }
 
+void MainWindow::outOptSelectTemplateFolder()
+{
+    QFileDialog fileDialog(this);
+    fileDialog.setFileMode(QFileDialog::Directory);
+    if(fileDialog.exec()){
+        QString template_folder = fileDialog.selectedFiles().join("\\").replace(QString("/"), QString("\\"));
+        m_output_template_folder_le->setText(template_folder);
+        m_settings->beginGroup("global");
+        m_settings->setValue("output_template_folder", template_folder);
+        m_settings->endGroup();
+    }
+}
+
 void MainWindow::run()
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
     m_run_wait_count = 0;
+    bool search = false;
     QMap<QString, SearchEntry*>::iterator ite;
+
+    // 入力チェック
+    if (!validate()) {
+        QApplication::restoreOverrideCursor();
+        return;
+    }
+
     for (ite = m_search_entry_map.begin(); ite != m_search_entry_map.end(); ++ite) {
         QString key = ite.key();
         SearchEntry *se = ite.value();
         if (m_search_entry_checkbox_map[key]->checkState() == Qt::Checked) {
             se->m_enable= true;
-            m_run_wait_count++;
         } else {
             se->m_enable= false;
         }
@@ -387,17 +458,72 @@ void MainWindow::run()
         QString key = ite.key();
         SearchEntry *se = ite.value();
         if (se->m_enable) {
-            se->setInput(m_input_product_name_le->text(), m_input_jancode_le->text());
+            se->setInput(
+                m_input_product_name_le->text(),
+                m_input_jancode_le->text(),
+                m_input_search_word_le->text(),
+                m_input_product_code_le->text(),
+                m_output_remarks_1_le->text(),
+                m_output_remarks_2_le->text(),
+                m_output_remarks_3_le->text(),\
+                m_output_template_folder_le->text()
+            );
 
-            QNetworkAccessManager *nam = new QNetworkAccessManager(this);
-            connect(nam, SIGNAL(finished(QNetworkReply*)),
-                    this, SLOT(replyFinished(QNetworkReply*)));
-            se->fetch(nam, m_search_entry_network_reply_map);
+            if (!se->m_search_url_template.isEmpty()) {
+                QNetworkAccessManager *nam = new QNetworkAccessManager(this);
+                connect(nam, SIGNAL(finished(QNetworkReply*)),
+                        this, SLOT(replyFinished(QNetworkReply*)));
+                if (se->fetch(nam, m_search_entry_network_reply_map)) {
+                    m_run_wait_count++;
+                    search = true;
+                }
+            } else {
+                se->extractProductUrl("");
+                se->extractProductImgUrl("");
+                se->extractProductNO("");
+                se->extractProductPrice("");
+                se->extractProductDate("");
+                se->buildLink();
+                se->buildWWL();
+            }
         }
     }
     if(m_run_wait_count == 0) {
         QApplication::restoreOverrideCursor();
+        if (!search) {
+            QMessageBox::warning(this, "検索失敗", "すべてのサイトで検索失敗しました");
+        }
     }
+}
+
+bool MainWindow::validate() {
+    // 出力先フォルダ
+    if (m_output_folder_le->text().isEmpty()) {
+        QApplication::restoreOverrideCursor();
+        QMessageBox::warning(this, "入力エラー", "出力先フォルダが空です");
+        return false;
+    }
+    QDir dir(m_output_folder_le->text());
+    if (!dir.exists()) {
+        QApplication::restoreOverrideCursor();
+        QMessageBox::warning(this, "入力エラー", "出力先フォルダが存在しません");
+        return false;
+    }
+
+    // 出力テンプレートフォルダ
+    if (m_output_template_folder_le->text().isEmpty()) {
+        QApplication::restoreOverrideCursor();
+        QMessageBox::warning(this, "入力エラー", "wwlテンプレートフォルダが空です");
+        return false;
+    }
+    QDir dir_wwl(m_output_template_folder_le->text());
+    if (!dir_wwl.exists()) {
+        QApplication::restoreOverrideCursor();
+        QMessageBox::warning(this, "入力エラー", "wwlテンプレートフォルダが存在しません");
+        return false;
+    }
+
+    return true;
 }
 
 void MainWindow::replyFinished(QNetworkReply *reply)
@@ -405,6 +531,7 @@ void MainWindow::replyFinished(QNetworkReply *reply)
     try {
         SearchEntry *se = m_search_entry_map[m_search_entry_network_reply_map[reply]];
         if(reply->error() == QNetworkReply::NoError) {
+
             // リダイレクトチェック
             int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if(statusCode == 301 || statusCode == 302 || statusCode == 303) {
@@ -418,14 +545,12 @@ void MainWindow::replyFinished(QNetworkReply *reply)
 
             QByteArray htmlRaw = reply->readAll();
             QTextCodec* codec = QTextCodec::codecForHtml(htmlRaw);
-            QString html = codec->toUnicode(htmlRaw);
+            QString html = codec->toUnicode(htmlRaw);            
             se->extractProductUrl(html);
             se->extractProductImgUrl(html);
             se->extractProductNO(html);
             se->extractProductPrice(html);
             se->extractProductDate(html);
-            se->buildLink();
-
             // 確認用
             QString htmlfile_path = m_here + tr("\\html\\") + se->m_name + tr(".html");
             QString htmldir_path = QFileInfo(htmlfile_path).absolutePath();
@@ -440,21 +565,14 @@ void MainWindow::replyFinished(QNetworkReply *reply)
             stream.setCodec(codecd);
             stream << html;
             htmlfile.close();
-        } else {
-            /*
-            QString str;
-            str = se->m_name;
-            str += tr("の検索に失敗しました。");
-            str += reply->errorString();
-            QMessageBox msg_box;
-            msg_box.setText(str);
-            msg_box.exec();
-            */
         }
+        se->buildLink();
+        se->buildWWL();
 
         m_run_wait_count--;
         if (m_run_wait_count < 1) {
             QString str;
+            QString wwl;
             QMap<QString, SearchEntry*>::iterator ite;
             for (ite = m_search_entry_map.begin(); ite != m_search_entry_map.end(); ++ite) {
                 SearchEntry *se = ite.value();
@@ -465,8 +583,10 @@ void MainWindow::replyFinished(QNetworkReply *reply)
                 str += "\t";
                 str += se->m_jancode;
                 str += "\t";
-                str += se->m_link;
-                str += "\t";
+                for (QVector<QString>::iterator it = se->m_links.begin(); it != se->m_links.end(); ++it) {
+                    str += *it;
+                    str += "\t";
+                }
                 str += se->m_search_url.toString();
                 str += "\t";
                 str += se->m_product_url;
@@ -498,11 +618,36 @@ void MainWindow::replyFinished(QNetworkReply *reply)
             stream.setCodec( codec );
             stream << str;
             file.close();
+
+            // wwl出力
+            for (ite = m_search_entry_map.begin(); ite != m_search_entry_map.end(); ++ite) {
+                SearchEntry *se = ite.value();
+                if (!se->m_enable) {
+                    continue;
+                }
+                wwl = wwl + se->m_wwl;
+            }
+            filename = m_output_folder_le->text() + tr("\\") + m_input_jancode_le->text() + tr(".wwl");
+            QFile file_wwl(filename);
+            if (!file_wwl.open(QIODevice::WriteOnly))
+            {
+                QApplication::restoreOverrideCursor();
+                QMessageBox::information(this, tr("Unable to open file"),
+                    file.errorString());
+                return;
+            }
+            QTextCodec* codec_wwl = QTextCodec::codecForName("UTF-8");
+            QTextStream stream_wwl( &file_wwl );
+            stream_wwl.setCodec( codec_wwl );
+            stream_wwl << wwl;
+            file_wwl.close();
+
             QApplication::restoreOverrideCursor();
             QMessageBox msg_box;
             msg_box.setText("ファイルへの出力が完了しました");
             msg_box.exec();
         }
+
     } catch(...) {
         QApplication::restoreOverrideCursor();
     }
