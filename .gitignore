@@ -1,0 +1,6 @@
+*.wwl
+/*.tsv
+/html/*.html
+/conf/*.bak*
+*.autosave
+/tmp
