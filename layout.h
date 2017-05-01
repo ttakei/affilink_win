@@ -14,7 +14,7 @@
 #include <QMap>
 #include "log.h"
 #include "ini.h"
-#include "searchentrymanagerbak.h"
+#include "searchentrymanager.h"
 #include "wwl.h"
 #include "csv.h"
 
