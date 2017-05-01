@@ -14,9 +14,21 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         mainwindow.cpp \
-    searchentry.cpp
+    searchentry.cpp \
+    log.cpp \
+    wwl.cpp \
+    ini.cpp \
+    layout.cpp \
+    searchentrymanager.cpp \
+    csv.cpp
 
 HEADERS  += mainwindow.h \
-    searchentry.h
+    searchentry.h \
+    log.h \
+    wwl.h \
+    ini.h \
+    layout.h \
+    searchentrymanager.h \
+    csv.h
 
 FORMS    += mainwindow.ui

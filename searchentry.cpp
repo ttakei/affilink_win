@@ -3,275 +3,350 @@
 #include <QtNetwork/QNetworkReply>
 #include <QTextCodec>
 
-SearchEntry::SearchEntry(const QString& id)
-{
+SearchEntry::SearchEntry(const QString& id) {
     m_id = id;
+    m_status = Status::INIT;
+    m_enable_search_product_code = false;
 }
 
-void SearchEntry::load(QSettings* settings)
-{
-    int max_template_num = settings->value("global/max_template_num", "1").toInt();
-    m_force_output = settings->value("global/force_output", "false").toBool();
+void SearchEntry::init(Ini* ini, Csv* csv) {
+    // 状態
+    m_status = Status::INIT;
 
-    QString group_name = getIniGroup();
-    settings->beginGroup(group_name);
-    m_name = settings->value("name").toString();
-    m_search_url_template = settings->value("search_url_template").toString();
-    m_regex_product_url = QRegExp(settings->value("regex_product_url").toString());
-    m_regex_product_img_url = QRegExp(settings->value("regex_product_img_url").toString());
-    m_regex_product_no = QRegExp(settings->value("regex_product_no").toString());
-    m_regex_product_price = QRegExp(settings->value("regex_product_price").toString());
-    m_regex_product_date = QRegExp(settings->value("regex_product_date").toString());
-    m_prefix_product_url = settings->value("prefix_product_url").toString();
-    m_prefix_product_img_url = settings->value("prefix_product_img_url").toString();
-//    m_link_template = settings->value("link_template").toString();
-//    m_link_template_default = settings->value("link_template_default").toString();
-    for (int i = 1; i <= max_template_num; ++i) {
-        QString key;
-        QString default_key;
+    // 設定で値を決めるメンバ変数
+    m_force_output = ini->get("global/force_output", "false").toBool();
+    ini->begingroup(getIniGroup());
+    m_name = ini->get("name").toString();
+    m_search_url_template = ini->get("search_url_template").toString();
+    m_regex_product_url = QRegExp(ini->get("regex_product_url").toString());
+    m_regex_product_img_url = QRegExp(ini->get("regex_product_img_url").toString());
+    m_regex_product_no = QRegExp(ini->get("regex_product_no").toString());
+    m_regex_product_price = QRegExp(ini->get("regex_product_price").toString());
+    m_regex_product_date = QRegExp(ini->get("regex_product_date").toString());
+    if (ini->contains("regex_product_code")) {
+        m_regex_product_code = QRegExp(ini->get("regex_product_code").toString());
+        m_enable_search_product_code = true;
+    } else {
+        m_enable_search_product_code = false;
+    }
+    m_prefix_product_url = ini->get("prefix_product_url").toString();
+    m_prefix_product_img_url = ini->get("prefix_product_img_url").toString();
+    m_enable = ini->get("enable", "false").toBool();
+    // リンクテンプレート
+    m_links.clear();
+    int i = 0;
+    while (true) {
+        i++;
+        QString key = QString("link_template") + QString(QString::number(i));
+        if (ini->contains(key)) {
+            QString link_template = ini->get(key).toString();
+            m_links.push_back(link_template);
+            continue;
+        }
+        // 番号1に限り番号はなくても良い
         if (i == 1) {
             key = QString("link_template");
-            default_key = QString("link_template_default");
-        } else {
-            key = QString("link_template") + QString(QString::number(i));
-            default_key = QString("link_template_default") + QString(QString::number(i));
+            if (ini->contains(key)) {
+                QString link_template = ini->get(key).toString();
+                m_links.push_back(link_template);
+                continue;
+            }
+        }
+        break;
+    }
+    // 商品ページパース設定
+    i = 0;
+    m_regex_product_page_word.clear();
+    while (true) {
+        i++;
+        QString key = QString("regex_product_page_word") + QString(QString::number(i));
+        if (ini->contains(key)) {
+            QString regex_product_page_word = ini->get(key).toString();
+            m_regex_product_page_word.push_back(QRegExp(regex_product_page_word));
+            continue;
         }
 
-        QString link_template = settings->value(key).toString();
-        QString link_template_default = settings->value(default_key).toString();
+        // 番号1に限り番号はなくても良い
         if (i == 1) {
-            if (link_template.isEmpty()) {
-                key = QString("link_template1");
-                link_template = settings->value(key).toString();
-            }
-            if (link_template_default.isEmpty()) {
-                default_key = QString("link_template_default1");
-                link_template_default = settings->value(default_key).toString();
+            key = QString("regex_product_page_word");
+            if (ini->contains(key)) {
+                QString regex_product_page_word = ini->get(key).toString();
+                m_regex_product_page_word.push_back(QRegExp(regex_product_page_word));
+                continue;
             }
         }
-
-        QPair<QString, QString> link_template_set;
-        link_template_set.first = link_template;
-        link_template_set.second = link_template_default;
-        m_link_templates.push_back(link_template_set);
+        break;
     }
-    m_enable = settings->value("enable").toBool();
-    settings->endGroup();
+    m_regex_product_page_desc = QRegExp(ini->get("regex_product_page_desc").toString());
+    if (m_regex_product_page_word.size() > 0 || !m_regex_product_page_desc.pattern().isEmpty()) {
+        m_enable_parse_product = true;
+    } else {
+        m_enable_parse_product = false;
+    }
+    ini->endgroup();
+
+    // 他メンバ変数
+    m_product_name.clear();
+    m_jancode.clear();
+    m_search_word.clear();
+    m_search_eword.clear();
+    m_product_code.clear();
+    m_remarks1.clear();
+    m_remarks2.clear();
+    m_remarks3.clear();
+    m_remarks4.clear();
+    m_remarks5.clear();
+
+    m_search_url.clear();
+    m_html.clear();
+    m_product_url.clear();
+    m_product_eurl.clear();
+    m_product_img_url.clear();
+    m_product_no.clear();
+    m_product_price.clear();
+    m_product_date.clear();
+    m_wwl.clear();
+    m_csv = csv;
 }
 
-void SearchEntry::setInput(
-    QString product_name,
-    QString jancode,
-    QString search_word,
-    QString product_code,
-    QString remarks1,
-    QString remarks2,
-    QString remarks3,
-    QString output_template_folder
-) {
-    m_product_name = product_name;
-    m_jancode = jancode;
-    m_search_word = search_word;
-    m_product_code = product_code;
-    m_remarks1 = remarks1;
-    m_remarks2 = remarks2;
-    m_remarks3 = remarks3;
-    m_wwl_template_file = output_template_folder + QString("\\") + m_id + QString(".tpl");
-    m_wwl_template_file_default = output_template_folder + QString("\\default.tpl");
+void SearchEntry::setStatusNosearch() {
+    m_status = Status::NOSEARCH;
 }
 
-bool SearchEntry::buildSearchUrl()
-{
-    if (m_jancode.isEmpty()) {
-        return false;
-    }
+void SearchEntry::setStatusSearching() {
+    m_status = Status::SEARCHING;
+}
 
-    QString search_url_str = QString(m_search_url_template).replace(":jancode", m_jancode)
-        .replace(":search_word", m_search_word)
-        .replace(":product_code", m_product_code)
-        .replace(":remarks_1", m_remarks1)
-        .replace(":remarks_2", m_remarks2)
-        .replace(":remarks_3", m_remarks3);
+void SearchEntry::setStatusSearched() {
+    m_status = Status::SEARCHED;
+}
+
+void SearchEntry::setStatusSearcherror() {
+    m_status = Status::SEARCHERROR;
+}
+
+void SearchEntry::setStatusSearchbuilt() {
+    m_status = Status::SEARCHBUILT;
+}
+
+void SearchEntry::setStatusParsingproduct() {
+    m_status = Status::PARSINGPRODUCT;
+}
+
+void SearchEntry::setStatusParsedproduct() {
+    m_status = Status::PARSEDPRODUCT;
+}
+
+void SearchEntry::setStatusResultbuilt() {
+    m_status = Status::RESULTBUILT;
+}
+
+bool SearchEntry::isStatus(SearchEntry::Status status) {
+    return m_status == status;
+}
+
+bool SearchEntry::isStatusSearching() {
+    return isStatus(SearchEntry::Status::SEARCHING);
+}
+
+bool SearchEntry::isStatusSearched() {
+    return isStatus(SearchEntry::Status::SEARCHED);
+}
+
+bool SearchEntry::isStatusNosearch() {
+    return isStatus(SearchEntry::Status::NOSEARCH);
+}
+
+bool SearchEntry::isStatusSearchbuilt() {
+    return isStatus(SearchEntry::Status::SEARCHBUILT);
+}
+
+bool SearchEntry::isStatusParsedproduct() {
+    return isStatus(SearchEntry::Status::PARSEDPRODUCT);
+}
+
+bool SearchEntry::isStatusResultbuilt() {
+    return isStatus(SearchEntry::Status::RESULTBUILT);
+}
+
+void SearchEntry::buildSearchUrl() {
+    QString search_url_str = m_search_url_template;
+    bind(search_url_str);
     m_search_url = QUrl(search_url_str);
-    return true;
+    return;
 }
 
-
-bool SearchEntry::fetch(QNetworkAccessManager* nam, QMap<QNetworkReply*, QString>& nm)
-{
-    if (!buildSearchUrl()) {
-        return false;
+bool SearchEntry::buildSearchResultProductCode() {
+    m_regex_product_code.indexIn(m_html);
+    QStringList match = m_regex_product_code.capturedTexts();
+    if (match.size() > 1) {
+        QString product_code = match.at(1).toUpper();
+        if (product_code.isEmpty()) {
+            return false;
+        }
+        m_product_code = product_code;
+        return true;
     }
-
-    nm.insert(nam->get(QNetworkRequest(m_search_url)), m_id);
-    return true;
+    return false;
 }
 
+void SearchEntry::buildSearchResult() {
+    buildProductUrl();    
+    buildProductImgUrl();
+    buildProductNO();
+    buildProductPrice();
+    buildProductDate();
+    setStatusSearchbuilt();
+    return;
+}
 
-bool SearchEntry::extractProductUrl(const QString& search_result_html)
-{
+void SearchEntry::buildParseProductResult() {
+    buildProductPageWord();
+    buildProductPageDesc();
+    setStatusParsedproduct();
+    return;
+}
+
+void SearchEntry::buildResult(Wwl* wwl) {
+    for (QVector<QString>::iterator it = m_links.begin(); it != m_links.end(); ++it) {
+        bind(*it);
+    }
+    buildWWL(wwl);
+    setStatusResultbuilt();
+    return;
+}
+
+void SearchEntry::buildProductUrl() {
     m_product_url = m_prefix_product_url;
-    m_regex_product_url.indexIn(search_result_html);
+    m_regex_product_url.indexIn(m_html);
     QStringList match = m_regex_product_url.capturedTexts();
     if (match.size() > 1) {
         m_product_url += match.at(1);
     }
-    m_product_url.replace(":product_name", m_product_name)
-            .replace(":name", m_name)
-            .replace(":product_no", m_product_no)
-            .replace(":jancode", m_jancode)
-            .replace(":search_word", m_search_word)
-            .replace(":product_code", m_product_code)
-            .replace(":remarks1", m_remarks1)
-            .replace(":remarks2", m_remarks2)
-            .replace(":remarks3", m_remarks3)
-            .replace(":jancode", m_jancode);
+    // prefix設定値との結合のためbind必要
+    // bind後にurlエンコードする必要がある
+    bind(m_product_url);
+
     QTextCodec* codec = QTextCodec::codecForLocale();
     m_product_eurl = codec->toUnicode(QUrl::toPercentEncoding(m_product_url));
-    return !m_product_url.isEmpty();
 }
 
-
-bool SearchEntry::extractProductImgUrl(const QString& search_result_html)
-{
+void SearchEntry::buildProductImgUrl() {
     m_product_img_url = m_prefix_product_img_url;
-    m_regex_product_img_url.indexIn(search_result_html);
+    m_regex_product_img_url.indexIn(m_html);
     QStringList match = m_regex_product_img_url.capturedTexts();
     if (match.size() > 1) {
         m_product_img_url += match.at(1);
     }
-    m_product_img_url.replace(":jancode", m_jancode);
-    return !m_product_img_url.isEmpty();
+    // prefix設定値との結合のためbind必要
+    // bind後にurlエンコードする必要がある
+    bind(m_product_img_url);
+
+    QTextCodec* codec = QTextCodec::codecForLocale();
+    m_product_img_eurl = codec->toUnicode(QUrl::toPercentEncoding(m_product_img_url));
 }
 
-
-bool SearchEntry::extractProductNO(const QString& search_result_html)
-{
-    m_regex_product_no.indexIn(search_result_html);
+void SearchEntry::buildProductNO() {
+    m_regex_product_no.indexIn(m_html);
     QStringList match = m_regex_product_no.capturedTexts();
     if (match.size() > 1) {
         m_product_no = match.at(1).toUpper();
     }
-    return !m_product_no.isEmpty();
+    return;
 }
 
-
-bool SearchEntry::extractProductPrice(const QString& search_result_html)
-{
-    m_regex_product_price.indexIn(search_result_html);
+void SearchEntry::buildProductPrice() {
+    m_regex_product_price.indexIn(m_html);
     QStringList match = m_regex_product_price.capturedTexts();
     if (match.size() > 1) {
         m_product_price = match.at(1);
     }
-    return !m_product_price.isEmpty();
+    return;
 }
 
-
-bool SearchEntry::extractProductDate(const QString& search_result_html)
-{
-    m_regex_product_date.indexIn(search_result_html);
+void SearchEntry::buildProductDate() {
+    m_regex_product_date.indexIn(m_html);
     QStringList match = m_regex_product_date.capturedTexts();
     if (match.size() > 1) {
         m_product_date = match.at(1);
     }
-    return !m_product_date.isEmpty();
+    return;
 }
 
-
-bool SearchEntry::buildLink()
-{
-    if (m_product_url == m_prefix_product_url ||
-        m_product_img_url == m_prefix_product_img_url ||
-        m_product_price.isEmpty()) {
-        m_ok = false;
-    } else {
-        m_ok = true;
-    }
-
-    m_links.clear();
-    for (QVector<QPair<QString, QString> >::iterator it = m_link_templates.begin(); it != m_link_templates.end(); ++it) {
-        QString link;
-        QString link_template = it->first;
-        QString link_template_default = it->second;
-
-        if (!m_force_output && !m_ok) {
-            if (link_template_default.isEmpty()) {
-                link = "";
-            }
-            link_template = link_template_default;
+void SearchEntry::buildProductPageWord() {
+    for (int i = 0; i < m_regex_product_page_word.size(); ++i) {
+        QRegExp regex = m_regex_product_page_word.at(i);
+        if (regex.indexIn(m_product_html) >= 0) {
+            m_product_page_word.push_back(true);
+        } else {
+            m_product_page_word.push_back(false);
         }
-        link = link_template.replace(":product_name", m_product_name)
-            .replace(":name", m_name)
-            .replace(":product_url", m_product_url)
-            .replace(":product_eurl", m_product_eurl)
-            .replace(":product_img_url", m_product_img_url)
-            .replace(":product_no", m_product_no)
-            .replace(":product_price", m_product_price)
-            .replace(":jancode", m_jancode)
-            .replace(":search_word", m_search_word)
-            .replace(":product_code", m_product_code)
-            .replace(":remarks1", m_remarks1)
-            .replace(":remarks2", m_remarks2)
-            .replace(":remarks3", m_remarks3)
-            .replace(":jancode", m_jancode);
-
-        m_links.push_back(link);
     }
-
-    return true;
+    return;
 }
 
-bool SearchEntry::buildWWL()
-{
-    // テンプレートファイル読み込み
-    QFile file(m_wwl_template_file);
-    if (!file.open(QIODevice::ReadOnly)) {
-        file.setFileName(m_wwl_template_file_default);
-        if (!file.open(QIODevice::ReadOnly)) {
-            return false;
-        }
+void SearchEntry::buildProductPageDesc() {
+    m_regex_product_page_desc.indexIn(m_product_html);
+    QStringList match = m_regex_product_page_desc.capturedTexts();
+    if (match.size() > 1) {
+        m_product_page_desc = match.at(1);
+    }
+    return;
+}
+
+bool SearchEntry::buildWWL(Wwl* wwl) {
+    m_wwl = wwl->get(m_id);
+    if (m_wwl.isEmpty()) {
+        return false;
     }
 
-    QString wwl_template;
-    QTextCodec* codec = QTextCodec::codecForName("UTF-8");
-    QTextStream in(&file);
-    in.setCodec( codec );
-    wwl_template = in.readAll();
-    file.close();
-
-    m_wwl = wwl_template
-            .replace(":id", m_id)
-            .replace(":product_name", m_product_name)
-            .replace(":name", m_name)
-            .replace(":product_url", m_product_url)
-            .replace(":product_eurl", m_product_eurl)
-            .replace(":product_img_url", m_product_img_url)
-            .replace(":product_no", m_product_no)
-            .replace(":product_price", m_product_price)
-            .replace(":jancode", m_jancode)
-            .replace(":search_word", m_search_word)
-            .replace(":product_code", m_product_code)
-            .replace(":remarks1", m_remarks1)
-            .replace(":remarks2", m_remarks2)
-            .replace(":remarks3", m_remarks3)
-            .replace(":jancode", m_jancode);
-
-    QVector<QString>::iterator ite;
     int i = 1;
-    for (ite = m_links.begin(); ite != m_links.end(); ++ite) {
-        QString link = *ite;
+    for (QVector<QString>::iterator it = m_links.begin(); it != m_links.end(); ++it) {
+        QString link = *it;
         QString var_name = QString(":link_template") + QString(QString::number(i));
 
-        m_wwl = m_wwl.replace(var_name, link);
+        m_wwl.replace(var_name, link);
         if (i == 1) {
-            m_wwl = m_wwl.replace(":link_template", link);
+            // 変数名の最後が1でない場合も
+            m_wwl.replace(":link_template", link);
         }
+        i++;
     }
+    bind(m_wwl);
 
     return true;
 }
 
-QString SearchEntry::getIniGroup()
-{
-    return  QString(SEARCHENTRY_ENTRY_GROUP_NAME_PREFIX) + m_id;
+QString SearchEntry::getIniGroup() {
+    return QString(SEARCHENTRY_ENTRY_GROUP_NAME_PREFIX) + m_id;
+}
+
+void SearchEntry::bind(QString& str) {
+    str
+            .replace(":id", m_id)
+            .replace(":name", m_name)
+            .replace(":product_name", m_product_name)
+            .replace(":product_url", m_product_url)
+            .replace(":product_eurl", m_product_eurl)
+            .replace(":product_img_url", m_product_img_url)
+            .replace(":product_img_eurl", m_product_img_eurl)
+            .replace(":product_no", m_product_no)
+            .replace(":product_price", m_product_price)
+            .replace(":jancode", m_jancode)
+            .replace(":search_word", m_search_word)
+            .replace(":search_eword", m_search_eword)
+            .replace(":product_code", m_product_code)
+            .replace(":remarks_1", m_remarks1)
+            .replace(":remarks_2", m_remarks2)
+            .replace(":remarks_3", m_remarks3)
+            .replace(":remarks_4", m_remarks4)
+            .replace(":remarks_5", m_remarks5)
+            .replace(":data_product_code", m_csv->code(m_jancode))
+            .replace(":data_product_name", m_csv->name(m_jancode))
+            .replace(":data_product_store", m_csv->store(m_jancode))
+            .replace(":data_product_jancode", m_csv->jancode(m_jancode))
+            .replace(":data_product_minprice", m_csv->min_price(m_jancode))
+            .replace(":data_product_date", m_csv->date(m_jancode))
+            .replace(":data_product_soldout", m_csv->soldout(m_jancode))
+            .replace(":product_page_desc", m_csv->soldout(m_product_page_desc));
 }
