@@ -75,15 +75,19 @@ QStringList Ini::explode(const QString &key, const QString &delimiter) {
     return list_raw.split(delimiter);
 }
 
-bool Ini::restoreFile(const QString & inifile_path) {
+bool Ini::restoreFile(const QString &inifile_path) {
     QFile inifile(inifile_path);
     QDir inidir = QFileInfo(inifile).absoluteDir();
+    QString dirpath = inidir.absolutePath();
     if (!inidir.exists()){
-        inidir.mkdir(inidir.dirName());
+        if (!inidir.mkpath(dirpath)) {
+            m_log->info(dirpath + QString("作成失敗"));
+            return false;
+        }
     }
 
     if (!inifile.open(QIODevice::WriteOnly | QIODevice::Text)){
-        m_log->err("設定ファイルを作成できません");
+        m_log->info(inifile_path + QString("設定ファイル作成失敗"));
         return false;
     }
     QTextStream out(&inifile);

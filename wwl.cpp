@@ -12,15 +12,27 @@ Wwl::Wwl() {}
 
 bool Wwl::load(Log* log) {
     QDir dir = QDir(m_dir);
-    if (!dir.exists()) {
-        log->err("wwlテンプレートフォルダが存在しません");
+
+    // ディレクトリが存在しない場合は作成
+    if (!dir.exists() && !dir.mkpath(dir.absolutePath())){
+        log->info(m_dir + QString("作成失敗"));
         return false;
     }
 
+    // デフォルトのtplが存在しない場合は作成
+    if (!m_templates.contains(WWL_DEFAULT_KEY)) {
+        if (!restoreDefaultFile(log)) {
+            log->info(QString(WWL_DEFAULT_KEY".tpl作成失敗"));
+            return false;
+        }
+    }
+
+    // ディレクトリ直下のテンプレートファイル
     QStringList filter;
     filter += "*.tpl";
     QStringList files = dir.entryList(filter);
 
+    // テンプレートファイル読み込み
     for (QStringList::iterator it = files.begin(); it != files.end(); ++it) {
         QString filepath = m_dir + QDir::separator() + *it;
         QString basename = QFileInfo(filepath).baseName();
@@ -55,4 +67,36 @@ QString Wwl::get(const QString& id) {
     } else {
         return m_templates[WWL_DEFAULT_KEY].first;
     }
+}
+
+bool Wwl::restoreDefaultFile(Log* log) {
+    QString filepath = m_dir + QString("\\"WWL_DEFAULT_KEY".tpl");
+    QFile file(filepath);
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        log->info(filepath + QString("作成失敗"));
+        return false;
+    }
+    QTextStream out(&file);
+    out.setCodec(QTextCodec::codecForName("UTF-8"));
+    QString body = getDefault();
+    out << body;
+    file.close();
+
+    return true;
+}
+
+QString Wwl::getDefault() {
+    QString wwl = QString::fromUtf8(R"###EOF###(	//{{TOP-W
+    //{{TOP
+Name: :id
+Targ:
+Refe:
+Exec: :nameの『:jancode』のリンク一覧
+Keyw:
+Cate:
+Blog: :link_template
+    END-W}}//
+)###EOF###");
+    return wwl;
 }

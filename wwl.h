@@ -18,6 +18,8 @@ public:
     QString m_dir;
 protected:
     QMap<QString, QPair<QString, QFileInfo>> m_templates;
+    bool restoreDefaultFile(Log*);
+    QString getDefault();
 };
 
 #endif // WWL_H

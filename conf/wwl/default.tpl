@@ -1,9 +1,9 @@
 	//{{TOP-W
 	//{{TOP
 Name: :id
-Targ: :remarks_1
+Targ:
 Refe: 
-Exec: :nameの『:product_name』のリンク一覧
+Exec: :nameの『:jancode』のリンク一覧
 Keyw: 
 Cate: 識別番号
 Blog: :link_template

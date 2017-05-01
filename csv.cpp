@@ -57,6 +57,22 @@ const QString& Product::soldout() const {
 Csv::Csv() {}
 
 bool Csv::load(Log* log, Ini* ini) {
+    // ｃｓｖファイルが存在しない場合は何もしない
+    QFile file(m_file);
+    QFileInfo fileinfo = QFileInfo(file);
+    if (!file.exists()) {
+        log->info(m_file + QString("存在せずcsv使用しない"));
+        return true;
+    }
+
+    // 前回から変更ない場合はなにもしない
+    if (!m_file_last.filePath().isEmpty()) {
+        QDateTime last_modify_before = m_file_last.lastModified();
+        if (m_file_last.filePath() == fileinfo.filePath() && last_modify_before == fileinfo.lastModified()) {
+            return true;
+        }
+    }
+
     // ヘッダ有無
     bool headless = true;
     QString headless_str = ini->get("global/csv_headless").toString();
@@ -67,22 +83,11 @@ bool Csv::load(Log* log, Ini* ini) {
     // 文字コード
     QByteArray charcode = ini->get("global/csv_charcode", "Shift-JIS").toByteArray();
 
-    // ファイル
-    QFile file(m_file);
-    QFileInfo fileinfo = QFileInfo(file);
-    if (!m_file_last.filePath().isEmpty()) {
-        QDateTime last_modify_before = m_file_last.lastModified();
-        if (m_file_last.filePath() == fileinfo.filePath() && last_modify_before == fileinfo.lastModified()) {
-            // 前回から変更ない場合はなにもしない
-            return true;
-        }
-    }
-
+    // ファイル読み込み
     if (!file.open(QIODevice::ReadOnly)) {
         log->err(QString(m_file) + "が開けません");
         return false;
     }
-
     QTextCodec* codec = QTextCodec::codecForName(charcode);
     QTextStream in(&file);
     in.setCodec(codec);

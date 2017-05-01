@@ -4,6 +4,7 @@
 #include <QTextStream>
 #include <QMessageBox>
 #include <QTextCursor>
+#include <QApplication>
 
 Log::Log(){}
 Log::Log(QWidget* main, QTextEdit* display, Level loglevel):
@@ -68,10 +69,12 @@ void Log::err(const QString &body, const QString &title) {
 
 void Log::msginfo(const QString &body, const QString &title)
 {
+    QApplication::restoreOverrideCursor();
     QMessageBox::information(m_msg_widget, title, body);
 }
 
 void Log::msgwarn(const QString &body, const QString &title)
 {
+    QApplication::restoreOverrideCursor();
     QMessageBox::warning(m_msg_widget, title, body);
 }

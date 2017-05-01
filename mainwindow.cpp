@@ -189,7 +189,7 @@ bool MainWindow::writeFile(const QString& filepath, const QString& str) {
     // ディレクトリがない場合は作成
     QDir dir;
     if (!dir.exists(dirpath)){
-        if (!dir.mkdir(dirpath)) {
+        if (!dir.mkpath(dirpath)) {
             m_log.info(dirpath + tr("作成失敗"));
             return false;
         }

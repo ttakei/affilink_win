@@ -107,31 +107,10 @@ bool Layout::validate() {
         m_log->err("出力先フォルダが空です", "入力エラー");
         return false;
     }
-    QDir dir(m_output_folder_le->text());
-    if (!dir.exists()) {
-        m_log->err("出力先フォルダが存在しません", "入力エラー");
-        return false;
-    }
 
     // 出力テンプレートフォルダ
     if (m_output_wwl_folder_le->text().isEmpty()) {
         m_log->err("wwlテンプレートフォルダが空です", "入力エラー");
-        return false;
-    }
-    QDir dir_wwl(m_output_wwl_folder_le->text());
-    if (!dir_wwl.exists()) {
-        m_log->err("wwlテンプレートフォルダが存在しません", "入力エラー");
-        return false;
-    }
-
-    // CSVファイル
-    if (m_output_csv_file_le->text().isEmpty()) {
-        m_log->err("商品csvファイルの指定が空です", "入力エラー");
-        return false;
-    }
-    QFile file_csv(m_output_wwl_folder_le->text());
-    if (!file_csv.exists()) {
-        m_log->err("csvファイルが存在しません", "入力エラー");
         return false;
     }
 
